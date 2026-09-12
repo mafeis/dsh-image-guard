@@ -2,7 +2,7 @@
 
 A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before a request is sent, historical images are trimmed to a budget; when the provider still rejects the image count with HTTP 400, the plugin learns the cap from that error and retries with fewer images.
 
-[简体中文](README.md) · MIT · v0.8.10 · [Changelog](CHANGELOG.md)
+[简体中文](README.md) · MIT · v0.8.11 · [Changelog](CHANGELOG.md)
 
 ## Highlights
 
@@ -55,18 +55,18 @@ Why a count limit is needed: `--limit-mm-per-prompt.image` counts the **whole pr
 
 ## What replaces a trimmed image
 
-| Case | Marker |
+| Case | Marker (examples use the English preset) |
 |---|---|
-| Has a path (usual; file name only by default) | `[图片已省略 #1 · 01-race-start.png · 需要时按文件名在工作区内搜索后读取]` |
-| `pathMode=full` | `[图片已省略 #1 · C:\path\to\shots\01-race-start.png · 需要时用 read_image 重新读取]` |
-| Attachment metadata only | `[图片已省略 #1 · 01-race-start.png · 内联图片 sha256:bf23bcd3 (image/png 1280x720 618 KiB) · 无原文件路径，已无法取回]` |
-| Remote URL | `[图片已省略 #1 · race.png · https://…/race.png · 需要时可重新访问该地址]` |
+| Has a path (usual; file name only by default) | `[image omitted #1 · 01-race-start.png · search the workspace by file name to read it again]` |
+| `pathMode=full` | `[image omitted #1 · C:\path\to\shots\01-race-start.png · read it again with read_image]` |
+| Attachment metadata only | `[image omitted #1 · 01-race-start.png · inline image sha1:bf23bcd3 (image/png 1280x720 618 KiB) · no source path, cannot be retrieved]` |
+| Remote URL | `[image omitted #1 · race.png · https://…/race.png · revisit the URL to view it]` |
 
 Identity comes from the neighbouring text fragment (`<path>`, file name, dimensions, bytes), then a remote URL, then a **sha1 fingerprint** of the inline data (`first 4 KB + total length`, stable for the same image). When an image cannot be retrieved, the marker says so rather than letting the model guess.
 
 The template (`placeholder`) supports `{index} {name} {path} {url} {id} {mime} {dims} {size} {identity} {hint}`. `{total}` and `{kept}` change as the conversation grows and would invalidate the prefix cache after the trimmed position, so they are not used by default.
 
-Markers are sent to the provider, so the default `pathMode: "basename"` writes only the file name — directory structure and drive letters stay local (`relative` uses paths relative to the workspace or `~`; `none` omits the name too). The marker wording itself is Chinese by default (`[图片已省略 …]`); set `placeholder` to change it.
+Markers are sent to the provider, so the default `pathMode: "basename"` writes only the file name — directory structure and drive letters stay local (`relative` uses paths relative to the workspace or `~`; `none` omits the name too). The marker wording is Chinese by default (`[图片已省略 …]`); Settings → Image Guard → Parameters has one-click Chinese and English presets, and `placeholder` can be set directly in the config file.
 
 ## Settings
 
@@ -80,7 +80,7 @@ Markers are sent to the provider, so the default `pathMode: "basename"` writes o
 | `learnLimit` | `true` | Parse the provider cap from the 400 response |
 | `dryRun` | `false` | Observe only, modify nothing |
 | `matchPath` | `/chat/completions\|/messages` | Which paths are handled (regex) |
-| `placeholder` | `[图片已省略 #{index}{identity}{hint}]` | Marker template |
+| `placeholder` | `[图片已省略 #{index}{identity}{hint}]` | Marker template (Chinese by default; English preset in the settings page) |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |
 | `tokensPerImage` | `972` | Vision tokens per image used for the savings estimate (`0` = off) |
 | `verbose` | `true` | Logging |

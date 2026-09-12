@@ -2,17 +2,19 @@
 
 语义化版本。这里只记**变更本身**；原理、实测数据与用法见 [README](README.md)。
 
-## 0.8.10 — 2026-09-12
+## 0.8.11 — 2026-09-12
 
-**文档、表述与打包整理**（合并记录 0.8.3–0.8.10 期间的整理工作）
+**文档、表述与打包整理**（合并记录 0.8.3–0.8.11 期间的整理工作）
 
 - README 收敛为双语：`README.md`（中文，默认）与 `README.en.md`（英文），互相链接；篇幅压缩至约 105 行，仅保留与本插件相关的内容（移除上游实现分析、性能实测与可行性探测）。
 - README、CHANGELOG、设置页文案、源码注释与运行日志统一为技术文档文体，去除口语化表述与表情符号。
-- 打包与规范：新增 `.github/workflows/test.yml`（无需安装依赖即可运行 68 项测试）与 `CONTRIBUTING.md`；移除无对应依赖的 `lint` 脚本；`@deepseek-ai/schemastery` 的 peer 范围加入预发布分支；市场条目补充 Release tarball 地址。
+- 打包与规范：新增 `.github/workflows/test.yml`（无需安装依赖即可运行 70 项测试）与 `CONTRIBUTING.md`；移除无对应依赖的 `lint` 脚本；`@deepseek-ai/schemastery` 的 peer 范围加入预发布分支；市场条目补充 Release tarball 地址。
 - 移除平台相关与冗余内容：删除 `tools/`（PowerShell 部署脚本、会话日志排障工具）与未使用的 `DEFAULT_PLACEHOLDER` 别名。
 - 仓库只保留插件本体与文档：投稿中转目录 `market/` 移出仓库（投稿时放入 awesome-dsh-plugin 的 `data/plugins/`）。
 - README 元信息行补充 CHANGELOG 链接。
 - `engines.node` 由 `>=18` 收紧为 `>=20`，与 CI 矩阵（20 / 22）及 `CONTRIBUTING.md` 的说明一致。
+- 标记模板支持一键预置：设置页「参数」新增中/英默认模板按钮（服务端默认仍为中文模板），英文语境不必手写占位符；英文版 README 的标记示例改用英文模板并注明服务端默认。
+- 删除测试中两个互调但无人使用的辅助函数。
 
 ## 0.8.2 — 2026-09-12
 

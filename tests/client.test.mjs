@@ -128,28 +128,6 @@ function findAll(node, pred, out = []) {
   return out;
 }
 
-function findSummary(details) {
-  const kids = details.props && details.props.children;
-  const list = Array.isArray(kids) ? kids : [kids];
-  for (const k of list) if (k && k.type === "summary") return { text: textOf(k).trim() };
-  return null;
-}
-/** 只算**默认可见**的文案（<details> 折叠区里的不算）——用来守"首屏不出滚动条"。 */
-function visibleText(node, insideDetails) {
-  if (node == null || node === false || node === true) return "";
-  if (typeof node === "string" || typeof node === "number") return insideDetails ? "" : String(node);
-  if (Array.isArray(node)) return node.map((n) => visibleText(n, insideDetails)).join(" ");
-  if (typeof node !== "object") return "";
-  if (node.type && typeof node.type === "function") return visibleText(node.type(node.props || {}), insideDetails);
-  const isDetails = node.type === "details";
-  const inner = visibleText(node.props ? node.props.children : null, insideDetails || isDetails);
-  if (isDetails) {
-    const s = findSummary(node);
-    return (s ? s.text : "") + " " + inner; // 折叠标题那一行本身可见
-  }
-  return inner;
-}
-
 /* ---------- 桩：document / fetch / modules ---------- */
 
 const injected = [];
@@ -349,6 +327,33 @@ await t("参数页：四个原生开关 + 全部可调项 + 预览 + 重新读�
     m.unmount();
   }
 });
+  await t("参数页提供中/英标记模板一键预置（英文模板不含中文）", async () => {
+    const m = mount(mod.ImageGuardSection, { t: (k) => `[${k}]` }, mini);
+    findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+    const btn = (label) => findAll(m.tree, (n) => n.type === "button" && textOf(n).trim() === label)[0];
+    const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
+    const zhBtn = btn("[presetZh]");
+    const enBtn = btn("[presetEn]");
+    assert.ok(zhBtn && enBtn, "中/英两个预置按钮都要有");
+    assert.ok(textOf(m.tree).includes("[presetFill]"), "预置按钮要有一行说明");
+    zhBtn.props.onClick();
+    assert.equal(ta().props.value, "[图片已省略 #{index}{identity}{hint}]", "中文预置应等于服务端默认模板");
+    enBtn.props.onClick();
+    const v = ta().props.value;
+    assert.equal(v, "[image omitted #{index}{identity}{hint}]");
+    assert.ok(!/[\u4e00-\u9fff]/.test(v), "英文模板不得含中文: " + v);
+    m.unmount();
+  });
+
+  await t("模板留空时预览回退到中文默认模板", async () => {
+    const m = mount(mod.ImageGuardSection, { t: (k) => `[${k}]` }, mini);
+    findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+    assert.equal(findAll(m.tree, (n) => n.type === "textarea")[0].props.value, "", "默认应为空（走服务端默认）");
+    const preview = findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0];
+    assert.ok(preview, "预览块要存在");
+    assert.ok(textOf(preview).includes("图片已省略"), "预览要显示中文默认模板: " + textOf(preview));
+    m.unmount();
+  });
 
 /* ---------------- ③ 诊断页 ---------------- */
 
