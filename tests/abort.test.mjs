@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 process.env.DSH_IMAGE_GUARD_STATUS = path.join(os.tmpdir(), "image-guard-abort-status.json");
+process.env.DSH_SETTINGS = path.join(os.tmpdir(), "image-guard-abort-settings-absent.yaml"); // 隔离宿主界面语言
 const { apply } = await import("../lib/index.js");
 
 const real = globalThis.fetch;

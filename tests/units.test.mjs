@@ -11,8 +11,8 @@ import { PassThrough } from "node:stream";
 process.env.DSH_IMAGE_GUARD_STATUS = path.join(os.tmpdir(), "image-guard-units-status.json");
 process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "ig-home-"));
 
-const { parseImageLimit, nextKeep, effectiveKeep, shouldTrim, shouldGiveUp } = await import("../lib/decide.js");
-const { normalize, loadConfig, writeConfig, configPath, defaults, hostLocale, effectiveMarkerLang, viewConfig } = await import("../lib/config.js");
+const { parseImageLimit, nextKeep, effectiveKeep, shouldTrim, shouldGiveUp, DEFAULT_MARKER, DEFAULT_MARKER_EN } = await import("../lib/decide.js");
+const { normalize, loadConfig, writeConfig, configPath, defaults, hostLocale, effectiveMarkerLang, viewConfig, isDefaultMarker } = await import("../lib/config.js");
 const { makeHandler } = await import("../lib/routes.js");
 
 let pass = 0;
@@ -219,6 +219,22 @@ t("normalize：markerLang 只认 zh/en，其余当跟随；placeholder 默认空
   assert.equal(normalize({ markerLang: "en" }).markerLang, "en");
   assert.equal(defaults().markerLang, "");
   assert.equal(defaults().placeholder, "");
+});
+
+t("placeholder 等于某语言默认模板时视为未自定义（0.8.11 会把默认值存进配置）", () => {
+  assert.equal(normalize({ placeholder: DEFAULT_MARKER }).placeholder, "", "中文默认模板 → 折叠为空");
+  assert.equal(normalize({ placeholder: DEFAULT_MARKER_EN }).placeholder, "", "英文默认模板 → 折叠为空");
+  assert.equal(normalize({ placeholder: "[[{index}]]" }).placeholder, "[[{index}]]", "真正的自定义要原样保留");
+  assert.equal(isDefaultMarker(DEFAULT_MARKER), true);
+  assert.equal(isDefaultMarker("[x]"), false);
+});
+
+t("英文界面 + 存着中文默认模板 → 生效模板取英文（不再留中文）", () => {
+  withLocale("locale:\n  preference: en\n");
+  const v = viewConfig({ placeholder: DEFAULT_MARKER, pathMode: "basename" });
+  assert.equal(v.placeholder, "", "默认模板被折叠，交给语言决定");
+  assert.equal(v.markerLang, "en");
+  assert.equal(v.markerLangAuto, true);
 });
 
 console.log(`\n通过 ${pass}/${total}`);

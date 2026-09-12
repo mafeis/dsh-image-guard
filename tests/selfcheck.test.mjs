@@ -12,6 +12,7 @@ import path from "node:path";
 const TEST_STATUS = path.join(os.tmpdir(), "image-guard-selfcheck-status.json");
 process.env.DSH_IMAGE_GUARD_STATUS = TEST_STATUS;
 process.env.DSH_IMAGE_GUARD_CONFIG = path.join(os.tmpdir(), "image-guard-selfcheck-config-absent.json");
+process.env.DSH_SETTINGS = path.join(os.tmpdir(), "image-guard-selfcheck-settings-absent.yaml"); // 隔离宿主界面语言
 
 const { apply } = await import("../lib/index.js");
 

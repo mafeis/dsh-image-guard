@@ -11,6 +11,7 @@ const STATUS = path.join(os.tmpdir(), "image-guard-shapes-status.json");
 process.env.DSH_IMAGE_GUARD_STATUS = STATUS;
 // 同理隔离配置：真实配置（若存在）优先于本文件传入的 config，会带偏断言
 process.env.DSH_IMAGE_GUARD_CONFIG = path.join(os.tmpdir(), "image-guard-shapes-config-absent.json");
+process.env.DSH_SETTINGS = path.join(os.tmpdir(), "image-guard-shapes-settings-absent.yaml"); // 隔离宿主界面语言
 const { apply } = await import("../lib/index.js");
 
 const mkBody = (n) => ({

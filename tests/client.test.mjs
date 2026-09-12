@@ -520,5 +520,34 @@ await t("标记语言默认跟随界面语言：英文界面下模板与预览�
     }
   });
 
+await t("存着中文默认模板 + 英文界面 → 输入框显示英文默认模板（且不含中文）", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, config: { ...FAKE_CONFIG, placeholder: "[图片已省略 #{index}{identity}{hint}]", markerLang: "en", markerLangAuto: true }, status: FAKE_STATUS }) });
+    try {
+      const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]", ui: () => "en" }, mini);
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      const ta = findAll(m.tree, (n) => n.type === "textarea")[0];
+      assert.equal(ta.props.value, "[image omitted #{index}{identity}{hint}]", "默认模板不该被当成自定义留在输入框里");
+      const prev = textOf(findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0]);
+      assert.ok(!/[\u4e00-\u9fff]/.test(prev), "预览不得含中文: " + prev);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  await t("自定义模板（非默认值）仍原样保留", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, config: { ...FAKE_CONFIG, placeholder: "[[dropped {index} {name}]]", markerLang: "en", markerLangAuto: true }, status: FAKE_STATUS }) });
+    try {
+      const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]", ui: () => "en" }, mini);
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      assert.equal(findAll(m.tree, (n) => n.type === "textarea")[0].props.value, "[[dropped {index} {name}]]");
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
 console.log(`\n通过 ${pass}/${total}`);
 process.exit(process.exitCode || 0);

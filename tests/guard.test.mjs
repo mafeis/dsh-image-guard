@@ -13,6 +13,7 @@ process.env.DSH_IMAGE_GUARD_STATUS = TEST_STATUS;
 // 同理：也绝不能读到用户的真实配置——配置文件优先级高于本文件传入的 config，
 // 一旦存在（如 ~/.dsh/image-guard.json 里 keepRecent=8），下面的断言就会被悄悄带偏。
 process.env.DSH_IMAGE_GUARD_CONFIG = path.join(os.tmpdir(), "image-guard-test-config-absent.json");
+process.env.DSH_SETTINGS = path.join(os.tmpdir(), "image-guard-guard-settings-absent.yaml"); // 隔离宿主界面语言：默认语言按中文断言
 
 const { apply } = await import("../lib/index.js");
 
