@@ -1,7 +1,7 @@
 {
   "name": "dsh-image-guard",
-  "version": "0.8.6",
-  "description": "DeepSeek Harness plugin: trims historical images from requests to the provider image budget and retries with fewer images when the provider rejects the image count with HTTP 400. · DSH 插件：发送前将历史图片裁剪至预算内，并在上游因图片数量返回 400 时自动降级重试。",
+  "version": "0.8.7",
+  "description": "DeepSeek Harness plugin: trims the oldest images from outgoing chat requests and, when the provider rejects the image count with HTTP 400, parses the limit from the error and retries with fewer images. · DSH 插件：裁剪即将发出请求中的历史图片，并在上游因图片数量返回 400 时解析该上限并按更少的图片重试。",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
@@ -12,7 +12,8 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md",
+    "README.en.md",
+    "CONTRIBUTING.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
@@ -45,8 +46,7 @@
     "url": "https://github.com/mafeis/dsh-image-guard/issues"
   },
   "scripts": {
-    "test": "node tests/units.test.mjs && node tests/guard.test.mjs && node tests/shapes.test.mjs && node tests/abort.test.mjs && node tests/client.test.mjs && node tests/marker.test.mjs && node tests/selfcheck.test.mjs",
-    "lint": "eslint ."
+    "test": "node tests/units.test.mjs && node tests/guard.test.mjs && node tests/shapes.test.mjs && node tests/abort.test.mjs && node tests/client.test.mjs && node tests/marker.test.mjs && node tests/selfcheck.test.mjs"
   },
   "dsh": {
     "bundle": {
@@ -62,7 +62,7 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": ">=3.18.1-rc.1 <3.19.0 || >=3.19.0-rc.1 <4.0.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/schemastery": {

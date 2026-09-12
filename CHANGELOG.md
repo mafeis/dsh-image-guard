@@ -2,6 +2,16 @@
 
 语义化版本。这里只记**变更本身**；原理、实测数据与用法见 [README](README.md)。
 
+## 0.8.7 — 2026-09-12
+
+**规范符合性修正**
+
+- README 默认语言改为中文（`README.md`），英文版移至 `README.en.md`，两者互相链接。
+- `package.json`：移除无对应依赖的 `lint` 脚本；`@deepseek-ai/schemastery` 的 peer 范围加入预发布分支，避免静默排除 harness 的预发布构建。
+- 新增 `.github/workflows/test.yml`：push 与 PR 均运行 `npm test`（纯 node，无需安装依赖）。
+- 新增 `CONTRIBUTING.md`，开发与测试说明移入其中；`deploy.ps1` 移至 `tools/`。
+- 市场条目描述改为更精确的表述，并补充 GitHub Release 的 tarball 安装地址。
+
 ## 0.8.6 — 2026-09-12
 
 **README 与社区惯例对齐**
