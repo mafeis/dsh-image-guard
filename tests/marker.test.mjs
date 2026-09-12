@@ -82,10 +82,10 @@ t("pathMode=none 完全不显示路径，并说明原因", () => {
   assert.ok(mark.includes("隐去"), "要说明这张图的路径被隐去: " + mark);
 });
 
-t("驱逐的是最早的，最近的 keep 张仍是图片", () => {
+t("裁剪的是最早的，最近的 keep 张仍为图片", () => {
   const { payload } = stripImages(body(dshMsg("a.png", DIR, B1), dshMsg("b.png", DIR, B2), dshMsg("c.png", DIR, B3)), 2, DEFAULT_MARKER);
   const kinds = payload.messages.map((m) => m.content.map((p) => p.type).join("+"));
-  assert.equal(kinds[0], "text+text", "第一张被换成文本");
+  assert.equal(kinds[0], "text+text", "最早一张被替换为文本");
   assert.equal(kinds[1], "text+image_url");
   assert.equal(kinds[2], "text+image_url");
 });
@@ -162,11 +162,11 @@ t("9 张图 keep=3 → 保留的正好是最后 3 张（最新），丢的是最
   const { payload, dropped } = stripImages(body(...msgs), 3, DEFAULT_MARKER);
   assert.equal(dropped, 6);
   const kinds = payload.messages.map((m) => m.content[1].type);
-  assert.deepEqual(kinds, ["text", "text", "text", "text", "text", "text", "image_url", "image_url", "image_url"], "前 6 条被换掉、后 3 条仍是图片");
+  assert.deepEqual(kinds, ["text", "text", "text", "text", "text", "text", "image_url", "image_url", "image_url"], "前 6 条被替换为文本、后 3 条仍为图片");
   const marks = textsOf(payload).filter((s) => s.startsWith("[图片已省略"));
-  ["im01", "im02", "im03", "im04", "im05", "im06"].forEach((n, i) => assert.ok(marks[i].includes(n + ".png"), `第 ${i + 1} 个标记应指向 ${n}（最早的那张）：${marks[i]}`));
+  ["im01", "im02", "im03", "im04", "im05", "im06"].forEach((n, i) => assert.ok(marks[i].includes(n + ".png"), `第 ${i + 1} 个标记应指向 ${n}（最早一张）：${marks[i]}`));
   for (const n of ["im07", "im08", "im09"]) {
-    assert.ok(!marks.some((s) => s.includes(n + ".png")), `${n} 是最新的，不该被换成标记`);
+    assert.ok(!marks.some((s) => s.includes(n + ".png")), `${n} 属于最新 N 张，不应被替换为标记`);
   }
   assert.ok(payload.messages[8].content[1].image_url.url.startsWith("data:image/png;base64,"), "第 9 张必须原样保留");
   console.log(`        丢掉首张 → ${marks[0]}`);
@@ -190,7 +190,7 @@ t("嵌套形态（tool-result 里再套 content）也要能数到、能裁掉", 
   const { payload, dropped } = stripImages(body(nested("old-a.png", "A".repeat(500)), nested("old-b.png", "B".repeat(500)), flat), 1, DEFAULT_MARKER);
   assert.equal(dropped, 2, "嵌套的两张也要被数到");
   const inner = payload.messages[0].content[0].content;
-  assert.equal(inner[1].type, "text", "嵌套里的图片应被换成标记");
+  assert.equal(inner[1].type, "text", "嵌套中的图片应被替换为标记");
   assert.ok(inner[1].text.includes("old-a.png"), "标记应取用嵌套里相邻的 <path>：" + inner[1].text);
   assert.equal(payload.messages[2].content[1].type, "image_url", "最新的那张保留");
   console.log(`        嵌套标记 → ${inner[1].text}`);

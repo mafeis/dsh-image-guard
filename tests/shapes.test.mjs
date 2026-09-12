@@ -70,7 +70,7 @@ foreignReq._body = JSON.stringify(mkBody(20));
 foreignReq.clone = () => ({ text: async () => foreignReq._body });
 foreignReq.text = async () => foreignReq._body;
 await fetch(foreignReq, {});
-check("foreign-Request 被识别（不再漏拦）", countImg(calls[0]) === 12, `实发 ${countImg(calls[0])} 张`);
+check("foreign-Request 可被识别（不会被跳过）", countImg(calls[0]) === 12, `实发 ${countImg(calls[0])} 张`);
 
 // ④ body 为流：无法解析 → 原样放行，但诊断里必须留下 read:false
 calls = [];

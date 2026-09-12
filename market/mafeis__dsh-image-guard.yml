@@ -8,5 +8,5 @@ url: https://github.com/mafeis/dsh-image-guard
 name: mafeis/dsh-image-guard
 category: vision
 description:
-  en: 'Keep image-heavy sessions alive: trim older images to a budget and retry automatically when the provider rejects the image count.'
-  zh: '让看图多的会话不再被 400 锁死：把历史旧图裁到预算内，并在服务端因图片数量拒绝时自动降级重试。'
+  en: 'Trims historical images to a provider image budget before each request and automatically downgrades/retries when the provider rejects the image count.'
+  zh: '发送前将历史图片裁剪至上游图片预算内，并在上游因图片数量拒绝时自动降级重试。'

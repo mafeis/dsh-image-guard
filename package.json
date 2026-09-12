@@ -1,7 +1,7 @@
 {
   "name": "dsh-image-guard",
-  "version": "0.8.3",
-  "description": "DeepSeek Harness plugin: keep image-heavy agent sessions alive by trimming older images from the request and retrying when the provider rejects the image count. · DSH 插件：驱逐历史旧图并在服务端因图片数量报 400 时自动降级重试，防止会话被 400 锁死。",
+  "version": "0.8.4",
+  "description": "DeepSeek Harness plugin: trims historical images from requests to the provider image budget and retries with fewer images when the provider rejects the image count with HTTP 400. · DSH 插件：发送前将历史图片裁剪至预算内，并在上游因图片数量返回 400 时自动降级重试。",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",

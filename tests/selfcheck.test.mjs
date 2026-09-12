@@ -1,6 +1,6 @@
 /**
  * 自检与自愈测试：插件的命门是「包装真的在 globalThis.fetch 链上」。
- * 实测踩过：宿主某次启动后包装装上了（状态文件都写了），LLM 请求却一条都没经过它。
+ * 实测现象：宿主某次启动后包装已安装（状态文件亦已写出），但 LLM 请求未经过它。
  * 本文件锁住三件事：① 探针能证明自己在链上；② 被别人顶掉能自动重新接管；
  * ③ 接管的包装仍然会裁剪（而不是只挂个壳）。
  * 用法: node tests/selfcheck.test.mjs
@@ -101,7 +101,7 @@ await t("反复被抢时放弃自愈，并记录 fetchStolen（不做无限互�
   assert.ok(h.status().rewraps <= 5, "重新接管次数要有上限");
 });
 
-await t("驱逐会累计「省下的 token」估算（每张 tokensPerImage − 标记开销）", async () => {
+await t("裁剪会累计「节省的 token」估算（每张 tokensPerImage − 标记开销）", async () => {
   const h = handle();
   h.stat.rewraps = 0; // 上一个用例把自愈次数用尽了，先重置并把守卫放回链首
   h.stat.fetchStolen = false;
