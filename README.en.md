@@ -2,7 +2,7 @@
 
 A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before a request is sent, historical images are trimmed to a budget; when the provider still rejects the image count with HTTP 400, the plugin learns the cap from that error and retries with fewer images.
 
-[简体中文](README.md) · MIT · v0.8.11 · [Changelog](CHANGELOG.md)
+[简体中文](README.md) · MIT · v0.8.12 · [Changelog](CHANGELOG.md)
 
 ## Highlights
 
@@ -55,7 +55,7 @@ Why a count limit is needed: `--limit-mm-per-prompt.image` counts the **whole pr
 
 ## What replaces a trimmed image
 
-| Case | Marker (examples use the English preset) |
+| Case | Marker (examples use `markerLang: "en"`) |
 |---|---|
 | Has a path (usual; file name only by default) | `[image omitted #1 · 01-race-start.png · search the workspace by file name to read it again]` |
 | `pathMode=full` | `[image omitted #1 · C:\path\to\shots\01-race-start.png · read it again with read_image]` |
@@ -64,9 +64,11 @@ Why a count limit is needed: `--limit-mm-per-prompt.image` counts the **whole pr
 
 Identity comes from the neighbouring text fragment (`<path>`, file name, dimensions, bytes), then a remote URL, then a **sha1 fingerprint** of the inline data (`first 4 KB + total length`, stable for the same image). When an image cannot be retrieved, the marker says so rather than letting the model guess.
 
+The marker language is set by `markerLang` (`zh` / `en`). It switches the default template **and** the marker body — the identity label and the retrieval hint (`需要时用 read_image 重新读取` ↔ `read it again with read_image`) — so with `en` a marker contains no Chinese at all. The **Marker language** dropdown in Settings → Image Guard → Parameters does the same, and also replaces a template that is still a default.
+
 The template (`placeholder`) supports `{index} {name} {path} {url} {id} {mime} {dims} {size} {identity} {hint}`. `{total}` and `{kept}` change as the conversation grows and would invalidate the prefix cache after the trimmed position, so they are not used by default.
 
-Markers are sent to the provider, so the default `pathMode: "basename"` writes only the file name — directory structure and drive letters stay local (`relative` uses paths relative to the workspace or `~`; `none` omits the name too). The marker wording is Chinese by default (`[图片已省略 …]`); Settings → Image Guard → Parameters has one-click Chinese and English presets, and `placeholder` can be set directly in the config file.
+Markers are sent to the provider, so the default `pathMode: "basename"` writes only the file name — directory structure and drive letters stay local (`relative` uses paths relative to the workspace or `~`; `none` omits the name too).
 
 ## Settings
 
@@ -80,7 +82,8 @@ Markers are sent to the provider, so the default `pathMode: "basename"` writes o
 | `learnLimit` | `true` | Parse the provider cap from the 400 response |
 | `dryRun` | `false` | Observe only, modify nothing |
 | `matchPath` | `/chat/completions\|/messages` | Which paths are handled (regex) |
-| `placeholder` | `[图片已省略 #{index}{identity}{hint}]` | Marker template (Chinese by default; English preset in the settings page) |
+| `markerLang` | `zh` | Marker language: `zh` / `en`; sets both the default template and the language of the marker body (identity, retrieval hint) |
+| `placeholder` | empty | Marker template; empty = the default for `markerLang` (`zh` → `[图片已省略 #{index}{identity}{hint}]`, `en` → `[image omitted #{index}{identity}{hint}]`) |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |
 | `tokensPerImage` | `972` | Vision tokens per image used for the savings estimate (`0` = off) |
 | `verbose` | `true` | Logging |

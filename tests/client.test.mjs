@@ -158,7 +158,7 @@ const FAKE_STATUS = {
   startedAt: new Date(Date.now() - 180000).toISOString(),
   diag: [{ at: "15:51:25", input: "url-string", body: "string", read: true, imgs: 14, msgs: 494, bytes: 9200000 }],
 };
-const FAKE_CONFIG = { enabled: true, keepRecent: 12, maxRetries: 3, learnLimit: true, dryRun: false, matchPath: "/chat/completions|/messages", placeholder: "[图片已省略 #{index}{identity}{hint}]", pathMode: "basename", tokensPerImage: 972, verbose: true };
+const FAKE_CONFIG = { enabled: true, keepRecent: 12, maxRetries: 3, learnLimit: true, dryRun: false, matchPath: "/chat/completions|/messages", placeholder: "", markerLang: "zh", pathMode: "basename", tokensPerImage: 972, verbose: true };
 globalThis.fetch = async (url, init) => {
   fetchCalls.push({ url, method: (init && init.method) || "GET", headers: (init && init.headers) || null, body: init && init.body });
   return {
@@ -327,32 +327,57 @@ await t("参数页：四个原生开关 + 全部可调项 + 预览 + 重新读�
     m.unmount();
   }
 });
-  await t("参数页提供中/英标记模板一键预置（英文模板不含中文）", async () => {
-    const m = mount(mod.ImageGuardSection, { t: (k) => `[${k}]` }, mini);
-    findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
-    const btn = (label) => findAll(m.tree, (n) => n.type === "button" && textOf(n).trim() === label)[0];
-    const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
-    const zhBtn = btn("[presetZh]");
-    const enBtn = btn("[presetEn]");
-    assert.ok(zhBtn && enBtn, "中/英两个预置按钮都要有");
-    assert.ok(textOf(m.tree).includes("[presetFill]"), "预置按钮要有一行说明");
-    zhBtn.props.onClick();
-    assert.equal(ta().props.value, "[图片已省略 #{index}{identity}{hint}]", "中文预置应等于服务端默认模板");
-    enBtn.props.onClick();
-    const v = ta().props.value;
-    assert.equal(v, "[image omitted #{index}{identity}{hint}]");
-    assert.ok(!/[\u4e00-\u9fff]/.test(v), "英文模板不得含中文: " + v);
-    m.unmount();
+  await t("标记语言：切到 English 后模板、预览、保存值全为英文", async () => {
+    fetchCalls = [];
+    const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]" }, mini);
+    try {
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      const sel = () => findAll(m.tree, (n) => n.type === "select" && textOf(n).includes("markerZh"))[0];
+      const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
+      const previewText = () => textOf(findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0]);
+      assert.equal(sel().props.value, "zh", "默认语言应为中文");
+      assert.ok(textOf(sel()).includes("[markerZh]") && textOf(sel()).includes("[markerEn]"), "下拉要有两个语言选项");
+      assert.ok(textOf(m.tree).includes("[markerLangHint]"), "要有语言说明");
+      assert.equal(ta().props.value, "[图片已省略 #{index}{identity}{hint}]", "配置里没模板时按语言回填默认值");
+      sel().props.onChange({ target: { value: "en" } });
+      assert.equal(sel().props.value, "en", "下拉应切到英文");
+      assert.equal(ta().props.value, "[image omitted #{index}{identity}{hint}]", "仍是默认值的模板要跟着换成英文");
+      const prev = previewText();
+      assert.ok(prev.includes("image omitted"), "预览要用英文模板: " + prev);
+      assert.ok(!/[\u4e00-\u9fff]/.test(prev), "英文预览不得含中文: " + prev);
+      const saveBtn = findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[save]"))[0];
+      saveBtn.props.onClick();
+      await new Promise((r) => setTimeout(r, 10));
+      const put = fetchCalls.find((c) => c.method === "PUT");
+      assert.ok(put, "应发出 PUT");
+      const body = JSON.parse(put.body);
+      assert.equal(body.markerLang, "en", "保存要带上 markerLang");
+      assert.equal(body.placeholder, "[image omitted #{index}{identity}{hint}]");
+    } finally {
+      m.unmount();
+    }
   });
 
-  await t("模板留空时预览回退到中文默认模板", async () => {
-    const m = mount(mod.ImageGuardSection, { t: (k) => `[${k}]` }, mini);
-    findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
-    assert.equal(findAll(m.tree, (n) => n.type === "textarea")[0].props.value, "", "默认应为空（走服务端默认）");
-    const preview = findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0];
-    assert.ok(preview, "预览块要存在");
-    assert.ok(textOf(preview).includes("图片已省略"), "预览要显示中文默认模板: " + textOf(preview));
-    m.unmount();
+  await t("标记语言：自定义模板不会被切换覆盖", async () => {
+    const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]" }, mini);
+    try {
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      const sel = () => findAll(m.tree, (n) => n.type === "select" && textOf(n).includes("markerZh"))[0];
+      const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
+      const custom = "[[dropped {index} {name}]]";
+      ta().props.onChange({ target: { value: custom } });
+      assert.equal(ta().props.value, custom);
+      sel().props.onChange({ target: { value: "en" } });
+      assert.equal(ta().props.value, custom, "自定义模板必须原样保留");
+      sel().props.onChange({ target: { value: "zh" } });
+      assert.equal(ta().props.value, custom, "切回中文也不能覆盖");
+      const prev = textOf(findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0]);
+      assert.ok(prev.includes("[[dropped 3 01-race-start.png]]"), "预览要用自定义模板: " + prev);
+    } finally {
+      m.unmount();
+    }
   });
 
 /* ---------------- ③ 诊断页 ---------------- */

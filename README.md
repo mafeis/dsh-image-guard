@@ -2,7 +2,7 @@
 
 DeepSeek Harness（DSH）插件，用于保证含图会话可继续使用：在请求发送前将历史图片裁剪至预算内；上游仍因图片数量返回 400 时，插件从该错误中解析上限，并按更少的图片降级重试。
 
-[English](README.en.md) · MIT · v0.8.11 · [变更记录](CHANGELOG.md)
+[English](README.en.md) · MIT · v0.8.12 · [变更记录](CHANGELOG.md)
 
 ## 主要特性
 
@@ -65,6 +65,8 @@ DSH agent
 
 模板（`placeholder`）支持 `{index} {name} {path} {url} {id} {mime} {dims} {size} {identity} {hint}`。`{total}` 与 `{kept}` 随会话增长而变化，会使被裁剪位置之后的**前缀缓存失效**，因此默认不使用。
 
+标记语言由 `markerLang` 决定（`zh` / `en`）：它不只换默认模板，也换标记正文里的身份标签与取回提示（`需要时用 read_image 重新读取` ↔ `read it again with read_image`），因此 `en` 下整条标记不含中文。设置页「参数」的**标记语言**下拉与之一一对应，切换时会把仍是默认值的模板一起换掉，自定义模板保持不动。
+
 标记会随请求发送至上游，因此默认 `pathMode: "basename"` 仅写入文件名——目录结构与盘符保留在本机（`relative` 使用相对工作区或 `~` 的路径；`none` 连文件名也不写）。模板留空时使用服务端中文默认；设置页「参数」提供**中/英一键预置**，英文模板为 `[image omitted #{index}{identity}{hint}]`。
 
 ## 配置
@@ -79,7 +81,8 @@ DSH agent
 | `learnLimit` | `true` | 是否从 400 响应中解析上游上限 |
 | `dryRun` | `false` | 仅观察，不修改任何请求 |
 | `matchPath` | `/chat/completions\|/messages` | 处理的路径（正则） |
-| `placeholder` | `[图片已省略 #{index}{identity}{hint}]` | 标记模板（默认中文；设置页可一键换成英文预置） |
+| `markerLang` | `zh` | 标记语言：`zh` / `en`，同时决定**默认模板**与标记正文（身份、取回提示）的语言 |
+| `placeholder` | 空 | 标记模板；留空 = 用 `markerLang` 对应的默认模板（`zh` → `[图片已省略 #{index}{identity}{hint}]`，`en` → `[image omitted #{index}{identity}{hint}]`） |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |
 | `tokensPerImage` | `972` | 估算节省量所用的单张图片视觉 token 数（`0` 表示不估算） |
 | `verbose` | `true` | 是否输出日志 |

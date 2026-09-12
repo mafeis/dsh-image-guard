@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { stripImages, extractImageInfo, renderMarker } from "../lib/shapes.js";
-import { DEFAULT_MARKER } from "../lib/decide.js";
+import { DEFAULT_MARKER, DEFAULT_MARKER_EN, defaultMarker } from "../lib/decide.js";
 
 let pass = 0;
 let total = 0;
@@ -218,6 +218,42 @@ t("空模板回落到默认模板", () => {
   const info = extractImageInfo(msg.content[1], msg.content, 1, { index: 1, total: 1 });
   assert.ok(renderMarker(info, "").includes("a.png"));
   assert.ok(renderMarker(info, null).includes("a.png"));
+});
+
+
+console.log("标记语言（markerLang）");
+
+t("markerLang=en：四种场景整段标记都不含中文，且提示语与英文模板一致", () => {
+  const cases = [
+    ["basename", { pathMode: "basename" }, "search the workspace by file name to read it again", "01-race-start.png"],
+    ["full", { pathMode: "full" }, "read it again with read_image", "01-race-start.png"],
+    ["none", { pathMode: "none" }, "path hidden by configuration", "sha1:"],
+  ];
+  for (const [name, opts, must, identity] of cases) {
+    const payload = stripImages(body(dshMsg("01-race-start.png", DIR, B1)), 0, "", { markerLang: "en", ...opts }).payload;
+    const mark = textsOf(payload).find((s) => s.startsWith("[image omitted"));
+    assert.ok(mark, name + ": 应生成英文标记");
+    assert.ok(mark.includes(must), name + ": 缺提示语 " + must + " → " + mark);
+    assert.ok(!/[\u4e00-\u9fff]/.test(mark), name + ": 英文标记不得含中文 → " + mark);
+    assert.ok(mark.includes(identity), name + ": 缺身份信息 " + identity + " → " + mark);
+  }
+  // 只有内联数据、没有路径时：内联标签与「取不回」提示也必须是英文
+  const inlineMsg = { role: "user", content: [{ type: "image_url", image_url: { url: "data:image/png;base64," + B1 } }] };
+  const mark = textsOf(stripImages(body(inlineMsg), 0, "", { markerLang: "en" }).payload).find((s) => s.startsWith("[image omitted"));
+  assert.ok(mark.includes("inline image"), "内联图标签要用英文: " + mark);
+  assert.ok(mark.includes("cannot be retrieved"), "取不回的说法要用英文: " + mark);
+  assert.ok(!/[\u4e00-\u9fff]/.test(mark), "不得含中文: " + mark);
+  console.log("        " + mark);
+});
+
+t("默认模板按语言回退：zh 为默认，en 显式；自定义模板优先", () => {
+  assert.equal(defaultMarker("zh"), DEFAULT_MARKER);
+  assert.equal(defaultMarker(undefined), DEFAULT_MARKER, "未配置时保持中文（向后兼容）");
+  assert.equal(defaultMarker("en"), DEFAULT_MARKER_EN);
+  const info = { index: 2, total: 5, kept: 3, name: "a.png", path: "a.png", remote: "", id: "sha1:x", mime: "image/png", dims: "10x10", sizeText: "1.0 KiB", identity: " · a.png", hint: " · h" };
+  assert.equal(renderMarker(info, "", "en"), "[image omitted #2 · a.png · h]");
+  assert.equal(renderMarker(info, "", "zh"), "[图片已省略 #2 · a.png · h]");
+  assert.equal(renderMarker(info, "[[{name}]]", "en"), "[[a.png]]", "自定义模板优先于语言默认");
 });
 
 console.log(`\n通过 ${pass}/${total}`);
