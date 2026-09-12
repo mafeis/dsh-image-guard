@@ -2,7 +2,7 @@
 
 A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before a request is sent, historical images are trimmed to a budget; when the provider still rejects the image count with HTTP 400, the plugin learns the cap from that error and retries with fewer images.
 
-[简体中文](README.md) · MIT · v0.8.12 · [Changelog](CHANGELOG.md)
+[简体中文](README.md) · MIT · v0.8.13 · [Changelog](CHANGELOG.md)
 
 ## Highlights
 
@@ -64,7 +64,7 @@ Why a count limit is needed: `--limit-mm-per-prompt.image` counts the **whole pr
 
 Identity comes from the neighbouring text fragment (`<path>`, file name, dimensions, bytes), then a remote URL, then a **sha1 fingerprint** of the inline data (`first 4 KB + total length`, stable for the same image). When an image cannot be retrieved, the marker says so rather than letting the model guess.
 
-The marker language is set by `markerLang` (`zh` / `en`). It switches the default template **and** the marker body — the identity label and the retrieval hint (`需要时用 read_image 重新读取` ↔ `read it again with read_image`) — so with `en` a marker contains no Chinese at all. The **Marker language** dropdown in Settings → Image Guard → Parameters does the same, and also replaces a template that is still a default.
+The marker language is set by `markerLang` and has three states: **empty (default) follows the app interface language** — an English UI produces English markers, a Chinese UI produces Chinese ones — or it can be pinned to `zh` / `en`. The language switches the default template **and** the marker body — the identity label and the retrieval hint (`需要时用 read_image 重新读取` ↔ `read it again with read_image`) — so with `en` pinned a marker contains no Chinese at all. The **Marker language** dropdown in Settings → Image Guard → Parameters offers these three states, and also replaces a template that is still a default.
 
 The template (`placeholder`) supports `{index} {name} {path} {url} {id} {mime} {dims} {size} {identity} {hint}`. `{total}` and `{kept}` change as the conversation grows and would invalidate the prefix cache after the trimmed position, so they are not used by default.
 
@@ -82,11 +82,13 @@ Markers are sent to the provider, so the default `pathMode: "basename"` writes o
 | `learnLimit` | `true` | Parse the provider cap from the 400 response |
 | `dryRun` | `false` | Observe only, modify nothing |
 | `matchPath` | `/chat/completions\|/messages` | Which paths are handled (regex) |
-| `markerLang` | `zh` | Marker language: `zh` / `en`; sets both the default template and the language of the marker body (identity, retrieval hint) |
-| `placeholder` | empty | Marker template; empty = the default for `markerLang` (`zh` → `[图片已省略 #{index}{identity}{hint}]`, `en` → `[image omitted #{index}{identity}{hint}]`) |
+| `markerLang` | empty (follows the UI) | Marker language: empty follows the host interface language, `zh` / `en` pin it; sets both the default template and the language of the marker body (identity, retrieval hint) |
+| `placeholder` | empty | Marker template; empty = the default for the effective language (`zh` → `[图片已省略 #{index}{identity}{hint}]`, `en` → `[image omitted #{index}{identity}{hint}]`) |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |
 | `tokensPerImage` | `972` | Vision tokens per image used for the savings estimate (`0` = off) |
 | `verbose` | `true` | Logging |
+
+On this machine the plugin only reads three files: the config `~/.dsh/image-guard.json`, the status `~/.dsh/image-guard-status.json`, and `locale.preference` in the host's `~/.dsh/settings.yaml` (**only** to pick the default marker language; Chinese is assumed when it is unreadable). It makes no other outbound requests and never reads or reports credentials.
 
 ## Status
 

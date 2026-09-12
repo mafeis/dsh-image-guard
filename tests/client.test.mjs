@@ -468,5 +468,57 @@ await t("保存会 PUT 到同源路由并带自定义头（总览与参数页共
   }
 });
 
+await t("标记语言默认跟随界面语言：英文界面下模板与预览都不含中文", async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ ok: true, config: { ...FAKE_CONFIG, markerLang: "en", markerLangAuto: true }, status: FAKE_STATUS }) });
+    try {
+      const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]", ui: () => "en-US" }, mini);
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      const sel = () => findAll(m.tree, (n) => n.type === "select" && textOf(n).includes("markerZh"))[0];
+      const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
+      const prev = () => textOf(findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0]);
+      assert.equal(sel().props.value, "", "未显式配置时应选中「跟随界面语言」");
+      assert.ok(textOf(sel()).includes("[markerAuto]"), "跟随项要在选项里");
+      assert.ok(textOf(sel()).includes("[markerEn]"), "跟随项要写明跟到哪种语言");
+      assert.equal(ta().props.value, "[image omitted #{index}{identity}{hint}]", "英文界面下默认模板应为英文");
+      assert.ok(prev().includes("image omitted"), "预览要用英文: " + prev());
+      assert.ok(!/[\u4e00-\u9fff]/.test(prev()), "英文界面预览不得含中文: " + prev());
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  await t("标记语言跟随态下改选中文 → 预览变中文、保存固定为 zh", async () => {
+    const orig = globalThis.fetch;
+    const calls = [];
+    globalThis.fetch = async (u, init) => {
+      const method = (init && init.method) || "GET";
+      if (method !== "GET") calls.push({ method, body: init && init.body });
+      return { ok: true, json: async () => ({ ok: true, config: { ...FAKE_CONFIG, markerLang: "en", markerLangAuto: true }, status: FAKE_STATUS }) };
+    };
+    try {
+      const m = mount(mod.ImageGuardSection, { t: (k) => "[" + k + "]", ui: () => "en" }, mini);
+      await new Promise((r) => setTimeout(r, 10));
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[tabParams]"))[0].props.onClick();
+      const sel = () => findAll(m.tree, (n) => n.type === "select" && textOf(n).includes("markerZh"))[0];
+      const ta = () => findAll(m.tree, (n) => n.type === "textarea")[0];
+      sel().props.onChange({ target: { value: "zh" } });
+      assert.equal(sel().props.value, "zh", "应切到固定中文");
+      assert.equal(ta().props.value, "[图片已省略 #{index}{identity}{hint}]", "固定中文后模板应换回中文默认");
+      const prev = textOf(findAll(m.tree, (n) => n.props && n.props.className === "ig-preview")[0]);
+      assert.ok(prev.includes("图片已省略") && prev.includes("需要时按文件名"), "预览要跟着变中文: " + prev);
+      findAll(m.tree, (n) => n.type === "button" && textOf(n).includes("[save]"))[0].props.onClick();
+      await new Promise((r) => setTimeout(r, 10));
+      const put = calls.find((c) => c.method === "PUT");
+      assert.ok(put, "应发出 PUT");
+      const body = JSON.parse(put.body);
+      assert.equal(body.markerLang, "zh", "固定后要写死 zh");
+      assert.equal(body.placeholder, "[图片已省略 #{index}{identity}{hint}]");
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
 console.log(`\n通过 ${pass}/${total}`);
 process.exit(process.exitCode || 0);

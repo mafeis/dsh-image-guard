@@ -12,7 +12,7 @@ process.env.DSH_IMAGE_GUARD_STATUS = path.join(os.tmpdir(), "image-guard-units-s
 process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "ig-home-"));
 
 const { parseImageLimit, nextKeep, effectiveKeep, shouldTrim, shouldGiveUp } = await import("../lib/decide.js");
-const { normalize, loadConfig, writeConfig, configPath, defaults } = await import("../lib/config.js");
+const { normalize, loadConfig, writeConfig, configPath, defaults, hostLocale, effectiveMarkerLang, viewConfig } = await import("../lib/config.js");
 const { makeHandler } = await import("../lib/routes.js");
 
 let pass = 0;
@@ -167,6 +167,58 @@ await ta("DELETE → 405", async () => {
   const res = mkRes();
   await handler(mkReq("DELETE", "/_dsh/image-guard"), res);
   assert.equal(res.out.code, 405);
+});
+
+/* ---------------- 标记语言：未配置时跟随宿主界面语言 ---------------- */
+
+const settingsFile = path.join(process.env.DSH_HOME, "settings.yaml");
+// 每个用例写成不同长度，避免 mtime+size 缓存键在同毫秒内撞车
+let localeStamp = 0;
+const withLocale = (text) => {
+  // 尺寸按 8 字节递增：mtime+size 缓存键不会因为「内容长度互相抵消」而撞车
+  fs.writeFileSync(settingsFile, text + "#" + "x".repeat(++localeStamp * 8) + "\n", "utf8");
+  process.env.DSH_SETTINGS = settingsFile;
+};
+
+t("hostLocale 只认顶层 locale 段的 preference（读不到按中文兜底）", () => {
+  withLocale("locale:\n  preference: en\nui-theme:\n  preference: system\n");
+  assert.equal(hostLocale(), "en");
+  withLocale("locale:\n  preference: zh-CN\n");
+  assert.equal(hostLocale(), "zh", "zh-CN 归到中文");
+  withLocale("locale:\n  preference: en-US\n");
+  assert.equal(hostLocale(), "en", "en-US 归到英文");
+  withLocale("ui-theme:\n  preference: en\n");
+  assert.equal(hostLocale(), "zh", "别的段里的 preference 不算数");
+  withLocale("locale:\n  other: 1\n");
+  assert.equal(hostLocale(), "zh", "locale 段里没有 preference 也无所谓");
+  process.env.DSH_SETTINGS = path.join(process.env.DSH_HOME, "no-such-settings.yaml");
+  assert.equal(hostLocale(), "zh", "文件缺失必须兜底，不能抛错");
+});
+
+t("effectiveMarkerLang：显式配置优先，未配置时跟随界面语言", () => {
+  withLocale("locale:\n  preference: en\n");
+  assert.equal(effectiveMarkerLang({ markerLang: "zh" }), "zh", "显式 zh 不被界面语言覆盖");
+  assert.equal(effectiveMarkerLang({ markerLang: "" }), "en", "空 = 跟随界面");
+  assert.equal(effectiveMarkerLang(null), "en");
+  withLocale("locale:\n  preference: zh\n");
+  assert.equal(effectiveMarkerLang({ markerLang: "en" }), "en");
+  assert.equal(effectiveMarkerLang({}), "zh");
+});
+
+t("viewConfig 把跟随态解析出来并标明 markerLangAuto", () => {
+  withLocale("locale:\n  preference: en\n");
+  assert.equal(viewConfig(null).markerLang, "en");
+  assert.equal(viewConfig(null).markerLangAuto, true);
+  assert.equal(viewConfig({ markerLang: "zh" }).markerLang, "zh");
+  assert.equal(viewConfig({ markerLang: "zh" }).markerLangAuto, false);
+});
+
+t("normalize：markerLang 只认 zh/en，其余当跟随；placeholder 默认空", () => {
+  assert.equal(normalize({ markerLang: "zz" }).markerLang, "");
+  assert.equal(normalize({ markerLang: "EN" }).markerLang, "", "大小写不宽容，脏值一律跟随");
+  assert.equal(normalize({ markerLang: "en" }).markerLang, "en");
+  assert.equal(defaults().markerLang, "");
+  assert.equal(defaults().placeholder, "");
 });
 
 console.log(`\n通过 ${pass}/${total}`);
