@@ -7,7 +7,7 @@
 ```
 lib/      index.js（fetch 包装 / 看门狗 / 探针 / 统计 / 路由）· shapes.js（请求形态识别 + 递归收集替换 + 标记渲染）
           decide.js（保留张数 / 是否裁剪 / 是否放弃 / 已解析上限）· config.js · routes.js · client.js（设置页）
-tests/    68 项测试，纯 node，无测试框架                     market/   插件市场投稿条目
+tests/    68 项测试，纯 node，无测试框架
 ```
 
 ## 测试
