@@ -1,6 +1,6 @@
 {
   "name": "dsh-image-guard",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "DeepSeek Harness plugin: trims historical images from requests to the provider image budget and retries with fewer images when the provider rejects the image count with HTTP 400. · DSH 插件：发送前将历史图片裁剪至预算内，并在上游因图片数量返回 400 时自动降级重试。",
   "type": "module",
   "main": "lib/index.js",
