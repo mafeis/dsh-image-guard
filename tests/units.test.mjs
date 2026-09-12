@@ -1,0 +1,172 @@
+/**
+ * 单元测试：decide（纯决策）/ config（校验与读写）/ routes（状态与配置路由）
+ * 用法: node tests/units.test.mjs
+ */
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { PassThrough } from "node:stream";
+
+process.env.DSH_IMAGE_GUARD_STATUS = path.join(os.tmpdir(), "image-guard-units-status.json");
+process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "ig-home-"));
+
+const { parseImageLimit, nextKeep, effectiveKeep, shouldTrim, shouldGiveUp } = await import("../lib/decide.js");
+const { normalize, loadConfig, writeConfig, configPath, defaults } = await import("../lib/config.js");
+const { makeHandler } = await import("../lib/routes.js");
+
+let pass = 0;
+let total = 0;
+const t = (name, fn) => {
+  total++;
+  try {
+    fn();
+    console.log(`  ✅ ${name}`);
+    pass++;
+  } catch (e) {
+    console.log(`  ❌ ${name}\n     ${e.message}`);
+    process.exitCode = 1;
+  }
+};
+const ta = async (name, fn) => {
+  total++;
+  try {
+    await fn();
+    console.log(`  ✅ ${name}`);
+    pass++;
+  } catch (e) {
+    console.log(`  ❌ ${name}\n     ${e.message}`);
+    process.exitCode = 1;
+  }
+};
+
+console.log("decide.js");
+
+t("parseImageLimit 解析 vLLM 英文措辞", () => {
+  assert.equal(parseImageLimit('{"message":"At most 8 image(s) may be provided in one prompt. (parameter=image)"}'), 8);
+  assert.equal(parseImageLimit("At most 16 images may be provided"), 16);
+});
+t("parseImageLimit 解析中文措辞", () => assert.equal(parseImageLimit("最多 4 张图片"), 4));
+t("parseImageLimit 对无关报文返回 null（不能乱重试）", () => {
+  assert.equal(parseImageLimit("maximum context length is 8192 tokens"), null);
+  assert.equal(parseImageLimit(""), null);
+  assert.equal(parseImageLimit(undefined), null);
+});
+t("nextKeep 一定比上一轮更小（不会原地打转）", () => {
+  assert.equal(nextKeep(8, 12), 7);
+  assert.equal(nextKeep(8, 7), 6);
+  assert.equal(nextKeep(0, 3), 0);
+  assert.equal(nextKeep(1, 0), 0);
+});
+t("effectiveKeep 取配置与「学到的上限-1」的较小者", () => {
+  assert.equal(effectiveKeep(12, null), 12);
+  assert.equal(effectiveKeep(12, 8), 7);
+  assert.equal(effectiveKeep(5, 8), 5);
+});
+t("shouldTrim / shouldGiveUp", () => {
+  assert.equal(shouldTrim(14, 12), true);
+  assert.equal(shouldTrim(12, 12), false);
+  assert.equal(shouldGiveUp(400, 0, 3), false);
+  assert.equal(shouldGiveUp(400, 3, 3), true);
+  assert.equal(shouldGiveUp(200, 1, 3), true);
+});
+
+console.log("config.js");
+
+t("normalize 夹取非法数值而不是原样落盘", () => {
+  assert.equal(normalize({ keepRecent: -5 }).keepRecent, 0);
+  assert.equal(normalize({ keepRecent: 99999 }).keepRecent, 999);
+  assert.equal(normalize({ keepRecent: "abc" }).keepRecent, defaults().keepRecent);
+  assert.equal(normalize({ maxRetries: 99 }).maxRetries, 10);
+});
+t("normalize 拒绝非法正则", () => assert.throws(() => normalize({ matchPath: "([unclosed" }), /matchPath/));
+t("normalize 布尔宽松归一化（0/'no' 不再是 true）", () => {
+  const n = normalize({ enabled: 0, learnLimit: "no", dryRun: 1, verbose: "off" });
+  assert.equal(n.enabled, false);
+  assert.equal(n.learnLimit, false);
+  assert.equal(n.dryRun, true);
+  assert.equal(n.verbose, false);
+  assert.equal(normalize({ enabled: "yes" }).enabled, true);
+  assert.equal(normalize({ enabled: "随便" }).enabled, defaults().enabled); // 无法识别 → 默认值
+});
+t("写-读往返一致（原子落盘）", () => {
+  const f = path.join(process.env.DSH_HOME, "round.json");
+  const saved = writeConfig({ keepRecent: 7, dryRun: true }, f);
+  assert.deepEqual(loadConfig(f), saved);
+  assert.equal(JSON.parse(fs.readFileSync(f, "utf8")).keepRecent, 7);
+});
+t("configPath 跟 DSH_HOME 走", () => assert.equal(configPath(), path.join(process.env.DSH_HOME, "image-guard.json")));
+
+console.log("routes.js");
+
+const mkReq = (method, url, body) => {
+  const r = new PassThrough();
+  r.method = method;
+  r.url = url;
+  if (body !== undefined) r.end(body);
+  else r.end();
+  return r;
+};
+const mkRes = () => {
+  const out = { code: 0, headers: null, body: "" };
+  return {
+    out,
+    writeHead(code, headers) {
+      out.code = code;
+      out.headers = headers;
+    },
+    end(s) {
+      out.body = s || "";
+    },
+  };
+};
+
+const file = path.join(process.env.DSH_HOME, "route.json");
+fs.writeFileSync(file, JSON.stringify({ keepRecent: 9 }), "utf8");
+let changed = null;
+const handler = makeHandler({
+  file,
+  getStatus: () => ({ bundled: 3, trimmed: 1 }),
+  onChanged: (c) => {
+    changed = c;
+  },
+});
+
+await ta("GET 返回配置 + 状态", async () => {
+  const res = mkRes();
+  await handler(mkReq("GET", "/_dsh/image-guard"), res);
+  assert.equal(res.out.code, 200);
+  const j = JSON.parse(res.out.body);
+  assert.equal(j.config.keepRecent, 9);
+  assert.equal(j.status.bundled, 3);
+  assert.equal(j.meta.name, "dsh-image-guard");
+});
+await ta("PUT 合并并持久化 + 触发 onChanged", async () => {
+  const res = mkRes();
+  await handler(mkReq("PUT", "/_dsh/image-guard", JSON.stringify({ keepRecent: 4, dryRun: true })), res);
+  assert.equal(res.out.code, 200);
+  const j = JSON.parse(res.out.body);
+  assert.equal(j.config.keepRecent, 4);
+  assert.equal(j.config.dryRun, true);
+  assert.equal(loadConfig(file).keepRecent, 4);
+  assert.equal(changed.keepRecent, 4);
+});
+await ta("PUT 非法 JSON → 400 且不落盘", async () => {
+  const before = loadConfig(file).keepRecent;
+  const res = mkRes();
+  await handler(mkReq("PUT", "/_dsh/image-guard", "{oops"), res);
+  assert.equal(res.out.code, 400);
+  assert.equal(loadConfig(file).keepRecent, before);
+});
+await ta("POST ?reset=1 回到默认值", async () => {
+  const res = mkRes();
+  await handler(mkReq("POST", "/_dsh/image-guard?reset=1"), res);
+  assert.equal(JSON.parse(res.out.body).config.keepRecent, defaults().keepRecent);
+});
+await ta("DELETE → 405", async () => {
+  const res = mkRes();
+  await handler(mkReq("DELETE", "/_dsh/image-guard"), res);
+  assert.equal(res.out.code, 405);
+});
+
+console.log(`\n通过 ${pass}/${total}`);

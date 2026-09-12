@@ -1,0 +1,4 @@
+# dsh-image-guard — bundle patch
+- insert:
+    - id: image-guard
+      name: 'dsh-image-guard'

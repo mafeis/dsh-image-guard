@@ -1,0 +1,12 @@
+# 提交到 awesome-dsh-plugin 市场的条目文件。
+# 用法：把这个文件放到 awesome-dsh-plugin 仓库的 data/plugins/mafeis__dsh-image-guard.yml，
+# 然后开一个 PR（一个文件就是一个完整投稿；README 由维护方脚本自动生成）。
+# 规则要点：
+#   - 描述以句号结尾；含 ": "（冒号+空格）时必须加引号，否则 YAML 解析失败
+#   - 仓库需声明 dsh.bundle（已满足）、创建满 1 天、并带上 dsh-plugin topic
+url: https://github.com/mafeis/dsh-image-guard
+name: mafeis/dsh-image-guard
+category: vision
+description:
+  en: 'Keep image-heavy sessions alive: trim older images to a budget and retry automatically when the provider rejects the image count.'
+  zh: '让看图多的会话不再被 400 锁死：把历史旧图裁到预算内，并在服务端因图片数量拒绝时自动降级重试。'
