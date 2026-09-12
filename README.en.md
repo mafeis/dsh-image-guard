@@ -2,7 +2,7 @@
 
 A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before a request is sent, historical images are trimmed to a budget; when the provider still rejects the image count with HTTP 400, the plugin learns the cap from that error and retries with fewer images.
 
-[简体中文](README.md) · MIT · v0.8.15 · [Changelog](CHANGELOG.md)
+[简体中文](README.md) · MIT · v0.8.16 · [Changelog](CHANGELOG.md)
 
 ## Highlights
 
