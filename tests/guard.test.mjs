@@ -147,4 +147,32 @@ await t("400 但不是图片问题 → 原样返回，不重试", {
   },
 });
 
+await t("链首被整个替换（绕开经纪人）：看门狗抢回并重装经纪人，且仍走别人的包装器", {
+  async run(calls) {
+    const me = globalThis.fetch; // 当前链首 = 守卫
+    let foreign = 0;
+    // 模拟有人绕开经纪人直接改写描述符（等价于 net-proxy 强行装到链首）
+    const taken = async (i, init) => {
+      foreign++;
+      return me(i, init);
+    };
+    Object.defineProperty(globalThis, "fetch", { value: taken, writable: true, configurable: true });
+    assert.equal(globalThis.fetch, taken, "属性被整个替换");
+    await new Promise((r) => setTimeout(r, 400)); // 看门狗 200ms 一轮
+    assert.equal(globalThis.fetch, me, "看门狗应抢回链首并重新装上经纪人");
+    const d = Object.getOwnPropertyDescriptor(globalThis, "fetch");
+    assert.equal(typeof d.get, "function", "抢回时应重新装上经纪人（getter）");
+    const g = globalThis[Symbol.for("dsh-image-guard")];
+    const keep = g.stat.learnedLimit ? g.stat.learnedLimit - 1 : 12;
+    calls.length = 0;
+    const res = await globalThis.fetch("https://gw/v1/chat/completions", { method: "POST", body: JSON.stringify({ messages: [mk(20)] }) });
+    assert.equal(res.status, 200);
+    assert.ok(foreign > 0, "抢回后仍要把请求交给别人的包装器，否则会绕开 net-proxy 的代理");
+    const body = calls[calls.length - 1].body;
+    assert.equal(countImages(body), keep, `应按 keepRecent/${keep} 裁剪`);
+    assert.equal(countPlaceholders(body), 20 - keep, "其余换成占位标记");
+    assert.equal(calls.length, 1, "抢回过程不得把请求发两次");
+  },
+});
+
 console.log(`\n通过 ${pass}/${total}`);

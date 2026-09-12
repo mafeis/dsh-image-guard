@@ -2,7 +2,7 @@
 
 A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before a request is sent, historical images are trimmed to a budget; when the provider still rejects the image count with HTTP 400, the plugin learns the cap from that error and retries with fewer images.
 
-[简体中文](README.md) · MIT · v0.8.14 · [Changelog](CHANGELOG.md)
+[简体中文](README.md) · MIT · v0.8.15 · [Changelog](CHANGELOG.md)
 
 ## Highlights
 
@@ -10,7 +10,7 @@ A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before 
 - **Learns the provider cap** — parses `At most N image(s) may be provided in one prompt` and retries with N−1 images; once learned, later requests in the same process send N−1 directly.
 - **Saves vision tokens** — ≈930 tokens net per trimmed image (972 measured cap − ≈40 marker cost); trimming 14 images to 7 saves ≈6.5k tokens per turn, shown live in the settings page.
 - **Never rewrites the conversation** — only the outgoing request body is modified (a `structuredClone` copy), so prefix caching stays intact and disabling the plugin restores the original behaviour.
-- **Stays at the head of the fetch chain** — a 1-second watchdog with in-chain probes re-attaches the wrapper, which `dsh-net-proxy` would otherwise bypass while proxying.
+- **Always stays at the head of the fetch chain** — it intercepts assignments to `globalThis.fetch` (a newly installed wrapper is tucked in underneath and still runs), backed by a 200 ms watchdog and in-chain probes, so `dsh-net-proxy` cannot bypass it while proxying.
 
 ## Install
 
@@ -51,7 +51,7 @@ upstream inference service
 
 Only `POST` requests that match the chat path and contain images are handled — everything else passes through untouched. The newest `keepRecent` images are kept, the rest become markers, and the request is sent with a `structuredClone`d body. On `At most N image(s)` the cap is parsed, the request is retried with N−1 images, up to `maxRetries` times.
 
-Why a count limit is needed: `--limit-mm-per-prompt.image` counts the **whole prompt**, while the DSH client-side budget counts bytes and pixels with no image-count limit — so a byte budget never prevents this failure, and compacting does not help because it resends the same history. Why the watchdog is needed: while proxying, `dsh-net-proxy` sends through its own sockets and bypasses every fetch wrapper below it, and its follow-the-system-proxy mode reinstalls it at the head of the chain; the 1-second watchdog with in-chain probes keeps this plugin on top, re-attaching at most 5 times.
+Why the chain head must be taken over: while proxying, `dsh-net-proxy` sends through its own socket and bypasses every wrapper below it, and its follow-the-system-proxy mode reinstalls it at the head on every proxy change — at that point it never calls its inner layer, so no after-the-fact reclaim can close the window. This plugin therefore intercepts assignments to `globalThis.fetch`: a newly installed wrapper is tucked in underneath (and still runs) while this plugin stays on top; if the property is replaced outright, the 200 ms watchdog and in-chain probes reclaim it.
 
 ## What replaces a trimmed image
 
@@ -92,7 +92,7 @@ On this machine the plugin only reads three files: the config `~/.dsh/image-guar
 
 ## Status
 
-`~/.dsh/image-guard-status.json` holds `chatPosts`, `bundled`, `trimmed`, `imagesDropped`, `retried`, `learnedLimit`, `maxSeen`, `tokensSaved`, plus `fetchOwned` / `probes` / `probeSeen` (a probe count of 0 means the guard is not on the chain) and `diag` (the last 40 request shapes: `input`, `body`, `bytes`, `imgs`, `msgs` — the first place to look when a request is not intercepted). `GET` / `PUT /_dsh/image-guard` read and write the config, `POST ?reset=1` restores defaults, `POST ?rewrap=1` forces re-attachment.
+`~/.dsh/image-guard-status.json` holds `chatPosts`, `bundled`, `trimmed`, `imagesDropped`, `retried`, `learnedLimit`, `maxSeen`, `tokensSaved`, plus `fetchOwned` / `probes` / `probeSeen`, `rewraps` / `stolenSeen` / `headName` (chain-head takeovers and reclaims, and the current head) (a probe count of 0 means the guard is not on the chain) and `diag` (the last 40 request shapes: `input`, `body`, `bytes`, `imgs`, `msgs` — the first place to look when a request is not intercepted). `GET` / `PUT /_dsh/image-guard` read and write the config, `POST ?reset=1` restores defaults, `POST ?rewrap=1` forces re-attachment.
 
 ## Limits
 
@@ -101,7 +101,8 @@ On this machine the plugin only reads three files: the config `~/.dsh/image-guar
 | Image **count only** | No compression or resizing; byte budgets are out of scope |
 | One 400 still happens | The cap can only be learned from a 400 response |
 | Historical images only | The newest N images are sent as-is, bytes included |
-| Watchdog re-attaches at most 5 times | Prevents wrappers nesting; flagged in Diagnostics when exceeded |
+| Ordering with other fetch-wrapping plugins | This plugin stays on top and the other one underneath: both keep working, at the cost of one extra wrapper hop on the direct path |
+| Plugins that take the head by assignment are absorbed | Such a plugin will not see itself at the head by reading `globalThis.fetch`; if it replaces the property outright it is reclaimed within 200 ms (it is still invoked in the meantime) |
 | Inline images without a path cannot be recovered | The marker carries a fingerprint and says so |
 | Depends on DSH's current request shapes | Unmatched shapes pass through (visible in Diagnostics) |
 

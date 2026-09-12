@@ -2,7 +2,7 @@
 
 DeepSeek Harness（DSH）插件，用于保证含图会话可继续使用：在请求发送前将历史图片裁剪至预算内；上游仍因图片数量返回 400 时，插件从该错误中解析上限，并按更少的图片降级重试。
 
-[English](README.en.md) · MIT · v0.8.14 · [变更记录](CHANGELOG.md)
+[English](README.en.md) · MIT · v0.8.15 · [变更记录](CHANGELOG.md)
 
 ## 主要特性
 
@@ -10,7 +10,7 @@ DeepSeek Harness（DSH）插件，用于保证含图会话可继续使用：在�
 - **解析上游上限**——从 `At most N image(s) may be provided in one prompt` 中解析上限 N，并按 N−1 张重试；解析到上限后，同进程内后续请求直接按 N−1 张发送。
 - **节省视觉 token**——每张被裁剪的图片净省约 930 token（实测上限 972 − 标记开销约 40）；14 张裁剪至 7 张约每轮省 6.5k token，设置页实时显示累计节省量。
 - **不修改会话历史**——仅修改即将发出的请求体（`structuredClone` 的副本），前缀缓存保持有效，关闭插件即恢复原有行为。
-- **保持在 fetch 链首层**——1 秒看门狗配合链上探针重新接入包装器，避免 `dsh-net-proxy` 在走代理时绕过它。
+- **始终保持在 fetch 链首**——拦下 `globalThis.fetch` 的赋值（新来的包装器收作下层、照旧生效），配合 200ms 看门狗与链上探针兜底，避免 `dsh-net-proxy` 在走代理时绕过它。
 
 ## 安装
 
@@ -50,7 +50,7 @@ DSH agent
 
 仅处理「`POST` + 匹配聊天补全路径 + 请求体含图片」的请求，其余请求原样透传。保留最新 `keepRecent` 张图片，其余替换为标记，并以 `structuredClone` 后的请求体发送。收到 `At most N image(s)` 时解析上限 N，按 N−1 张重试，最多 `maxRetries` 次。
 
-为何需要按张数控制：`--limit-mm-per-prompt.image` 按**整个 prompt** 计数，而 DSH 客户端的预算按字节 / 像素计算、不限制张数——因此字节预算无法阻止该失败，compact 压缩也不起作用（它重发同一份历史）。为何需要看门狗：走代理时 `dsh-net-proxy` 使用自带 socket 发包，会绕过其下层的一切 fetch 包装器，且其「跟随系统代理」模式会在系统代理变更时将其自身重新安装到链首；1 秒看门狗配合链上探针使本插件始终位于最上层，最多重新接入 5 次。
+为何需要按张数控制：`--limit-mm-per-prompt.image` 按**整个 prompt** 计数，而 DSH 客户端的预算按字节 / 像素计算、不限制张数——因此字节预算无法阻止该失败，compact 压缩也不起作用（它重发同一份历史）。为何需要接管链首：走代理时 `dsh-net-proxy` 使用自带 socket 发包，会绕过其下层的一切 fetch 包装器，且其「跟随系统代理」模式会在系统代理每次变更时把自身重新安装到链首——此时它既不会调用下层，也就无法靠事后抢回消除窗口。因此本插件拦下 `globalThis.fetch` 的赋值：新来的包装器被收作下层（它照旧生效），本插件始终位于最上层；被整个替换掉属性时由 200ms 看门狗与链上探针兜底抢回。
 
 ## 被裁剪图片的替换内容
 
@@ -91,7 +91,7 @@ DSH agent
 
 ## 状态与路由
 
-`~/.dsh/image-guard-status.json` 包含 `chatPosts`、`bundled`、`trimmed`、`imagesDropped`、`retried`、`learnedLimit`、`maxSeen`、`tokensSaved`，以及 `fetchOwned` / `probes` / `probeSeen`（探针数为 0 表示未接入链）与 `diag`（最近 40 条请求形态：`input`、`body`、`bytes`、`imgs`、`msgs`——请求未被拦截时首先查看此处）。`GET` / `PUT /_dsh/image-guard` 读写配置，`POST ?reset=1` 恢复默认，`POST ?rewrap=1` 强制重新接入。
+`~/.dsh/image-guard-status.json` 包含 `chatPosts`、`bundled`、`trimmed`、`imagesDropped`、`retried`、`learnedLimit`、`maxSeen`、`tokensSaved`，以及 `fetchOwned` / `probes` / `probeSeen`（探针数为 0 表示未接入链）、`rewraps` / `stolenSeen` / `headName`（链首被占用与抢回的次数、当前链首）与 `diag`（最近 40 条请求形态：`input`、`body`、`bytes`、`imgs`、`msgs`——请求未被拦截时首先查看此处）。`GET` / `PUT /_dsh/image-guard` 读写配置，`POST ?reset=1` 恢复默认，`POST ?rewrap=1` 强制重新接入。
 
 ## 已知限制
 
@@ -100,7 +100,8 @@ DSH agent
 | 仅控制**图片张数** | 不压缩、不缩放图片；字节预算不在处理范围 |
 | 首次仍会出现一次 400 | 上限只能从 400 响应中获知 |
 | 仅针对历史图片 | 最新 N 张按原样发送（含字节） |
-| 看门狗最多重新接入 5 次 | 避免包装器相互嵌套；超出后在诊断页标记 |
+| 与其他 fetch 包装插件的顺序 | 本插件固定在最上层、对方位于其下层：两者都生效，代价是直连模式下请求多穿一层包装 |
+| 靠赋值抢占链首的插件会被拦下 | 它不会通过读取 `globalThis.fetch` 发现自己未在链首；若它整个替换该属性，200ms 内会被抢回（期间该插件仍会被调用） |
 | 已内联且无路径的图片无法恢复 | 标记中携带指纹并明确说明 |
 | 依赖 DSH 当前的请求形态 | 形态不匹配的请求会透传（诊断页可见） |
 
