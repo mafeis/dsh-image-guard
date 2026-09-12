@@ -2,7 +2,7 @@
 
 DeepSeek Harness（DSH）插件，用于保证含图会话可继续使用：在请求发送前将历史图片裁剪至预算内；上游仍因图片数量返回 400 时，插件从该错误中解析上限，并按更少的图片降级重试。
 
-[English](README.en.md) · MIT · v0.8.7
+[English](README.en.md) · MIT · v0.8.8
 
 ## 主要特性
 

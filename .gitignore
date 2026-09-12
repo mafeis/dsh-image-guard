@@ -3,4 +3,3 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.tmp
-image-guard-status.json
