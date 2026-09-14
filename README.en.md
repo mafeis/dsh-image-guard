@@ -14,18 +14,48 @@ A DeepSeek Harness (DSH) plugin that keeps image-heavy sessions working. Before 
 
 ## Install
 
-DSH Desktop (recommended: install from the GUI plugin market). Manually, the desktop profile is the one DSH Desktop loads:
+> **Note**: the plugin is not yet published to npm and is not listed in any plugin-market catalog (dshfind, 1024Store, awesome-dsh-plugin), so it cannot be found in the DSH Desktop GUI plugin market yet. See "Market listing" at the end of this section. On desktop, use the manual install below.
 
-```sh
-# in <DSH_HOME>/profiles/desktop/package.json
-#   dependencies         "dsh-image-guard": "github:mafeis/dsh-image-guard"
-#   dsh.profile.bundles  "dsh-image-guard"
-cd <DSH_HOME>/profiles/desktop && pnpm install --prefer-offline --ignore-scripts
-```
+### DSH Desktop (manual install)
 
-CLI profiles: `dsh plugin --profile <name> add github:mafeis/dsh-image-guard`
+DSH Desktop loads the profile named `desktop`, located at `~/.dsh/profiles/desktop/` (on Windows: `%USERPROFILE%\.dsh\profiles\desktop\`). That profile is owned by Electron and refuses `dsh plugin` management commands, so installation means editing the manifest by hand:
 
-Restart DSH Desktop afterwards. Note that `desktop` is reserved for the Electron-held profile, so `dsh plugin --profile desktop …` is refused by the launcher, and adding an `insert` entry to `cordis.patch.yml` by hand does not load a plugin — the GUI reads `dependencies` and `dsh.profile.bundles` only.
+1. Edit `~/.dsh/profiles/desktop/package.json` and add to `dependencies`:
+
+   ```json
+   "dsh-image-guard": "github:mafeis/dsh-image-guard"
+   ```
+
+2. Append `"dsh-image-guard"` to the `dsh.profile.bundles` array in the same file (create the field under `dsh` if it is missing):
+
+   ```json
+   "dsh": {
+     "profile": {
+       "bundles": ["dsh-image-guard"]
+     }
+   }
+   ```
+
+3. Install the dependency, then restart DSH Desktop:
+
+   ```sh
+   cd ~/.dsh/profiles/desktop && pnpm install --prefer-offline --ignore-scripts
+   ```
+
+The GUI (Settings → Plugins) reads only those two places — `dependencies` and `dsh.profile.bundles`; adding an `insert` entry to `cordis.patch.yml` by hand does not load a plugin. Desktop's bundled pnpm installs against the Electron runtime; for a pure-JS plugin like this one (zero dependencies) the result is identical.
+
+### CLI profiles
+
+`dsh plugin --profile <name> add github:mafeis/dsh-image-guard`
+
+Note that `desktop` is not a valid target here — the name is reserved for the Electron-held profile and the launcher refuses plugin management requests against it.
+
+### Market listing
+
+Remaining steps (once done, the GUI market offers one-click install):
+
+- Publish the npm package `dsh-image-guard` — the built-in market catalogs (dshfind / 1024Store) only index npm packages, and Desktop's market install channel accepts exact npm targets only;
+- Open a PR to [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) adding `data/plugins/mafeis__dsh-image-guard.yml` (that list powers the dsh-market plugin).
 
 ## Verify
 

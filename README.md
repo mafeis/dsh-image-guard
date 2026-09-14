@@ -14,18 +14,48 @@ DeepSeek Harness（DSH）插件，用于保证含图会话可继续使用：在�
 
 ## 安装
 
-DSH Desktop：建议通过 GUI 插件市场安装。手动安装时，需注意 DSH Desktop 加载的是 `desktop` profile：
+> **注意**：本插件目前尚未发布到 npm，也未被任何插件市场目录（dshfind、1024Store、awesome-dsh-plugin）收录，因此在 DSH Desktop 的 GUI 插件市场中搜索不到。收录进展见文末「市场收录」。桌面端请先使用下方的手动安装。
 
-```sh
-# 编辑 <DSH_HOME>/profiles/desktop/package.json
-#   dependencies         "dsh-image-guard": "github:mafeis/dsh-image-guard"
-#   dsh.profile.bundles  "dsh-image-guard"
-cd <DSH_HOME>/profiles/desktop && pnpm install --prefer-offline --ignore-scripts
-```
+### DSH Desktop（手动安装）
 
-命令行 profile：`dsh plugin --profile <name> add github:mafeis/dsh-image-guard`
+DSH Desktop 加载名为 `desktop` 的 profile，位于 `~/.dsh/profiles/desktop/`（Windows 即 `%USERPROFILE%\.dsh\profiles\desktop\`）。该 profile 由 Electron 持有，`dsh plugin` 命令会被启动器拒绝，安装需手动编辑 manifest：
 
-安装后需重启 DSH Desktop。注意：`desktop` 为 Electron 持有的 profile 名称，启动器会拒绝对其执行插件管理请求；此外，手工在 `cordis.patch.yml` 中添加 `insert` 条目不会加载插件——GUI 仅识别 `dependencies` 与 `dsh.profile.bundles`。
+1. 编辑 `~/.dsh/profiles/desktop/package.json`，在 `dependencies` 中加入：
+
+   ```json
+   "dsh-image-guard": "github:mafeis/dsh-image-guard"
+   ```
+
+2. 在同一文件的 `dsh.profile.bundles` 数组中追加 `"dsh-image-guard"`（该字段不存在则在 `dsh` 字段下新建）：
+
+   ```json
+   "dsh": {
+     "profile": {
+       "bundles": ["dsh-image-guard"]
+     }
+   }
+   ```
+
+3. 安装依赖后重启 DSH Desktop：
+
+   ```sh
+   cd ~/.dsh/profiles/desktop && pnpm install --prefer-offline --ignore-scripts
+   ```
+
+GUI（设置 → 插件）只识别上述两处——`dependencies` 与 `dsh.profile.bundles`；手工在 `cordis.patch.yml` 中添加 `insert` 条目不会加载插件。Desktop 自带的 pnpm 以 Electron runtime 执行安装，手动 `pnpm install` 对纯 JS 插件（本插件无任何依赖）结果一致。
+
+### 命令行 profile
+
+`dsh plugin --profile <name> add github:mafeis/dsh-image-guard`
+
+注意：`desktop` 不在此列——它是 Electron 持有的 profile 名称，启动器拒绝对其执行插件管理请求。
+
+### 市场收录
+
+待办事项（完成后 GUI 市场即可一键安装）：
+
+- 发布 npm 包 `dsh-image-guard`——内置市场目录（dshfind / 1024Store）只索引 npm 包，Desktop 的市场安装通道也只接受精确的 npm 包名；
+- 向 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提 PR 添加 `data/plugins/mafeis__dsh-image-guard.yml`（该列表驱动 dsh-market 市场）。
 
 ## 验证
 
