@@ -2,6 +2,17 @@
 
 语义化版本。这里只记**变更本身**；原理、实测数据与用法见 [README](README.md)。
 
+## 0.8.18 — 2026-11-25
+
+**修复：provider 走 OpenAI Responses API 时完全失效**
+
+- 路径：默认 `matchPath` 增加 `/responses`。此前只匹配 `/chat/completions` 与 `/messages`，因此 `api: openai-responses` 的路由（DSH 中常见的网关接入方式）一个请求都不会被处理——状态文件里表现为 `probes` 在涨而 `chatPosts` 恒为 0。
+- 请求体形态：`collectImages()` / `stripImages()` 除 `body.messages` 外也扫描 `body.input`，并递归到 `output` 里的嵌套片段；`partTypeSample()` 同步支持，诊断页可直接看到真实片段类型。此前只认 `{messages:[…]}`，Responses 请求体被当作"无图"原样放行（诊断里 `bytes` 为数百 KB 而 `imgs` 恒为 0）。
+- 替换片段类型：新增 `replacementPart()`——`input_image` 位置写回 `input_text`，其余形态仍写 `type:"text"`。Responses API 的输入片段不接受 `type:"text"`，直接替换会让上游把请求判为无效参数。
+- 长度头：`withBody()` 改写请求体后丢弃过期的 `content-length`（`Headers` / 普通对象 / 数组三种形态），避免上游按旧长度等待导致请求挂起。
+- 400 解析：`parseImageLimit()` 覆盖 `Total number of images exceeds the maximum allowed of 20`、`max 20 images` 等措辞。此前 `/images?[^0-9]{0,20}(\d+)/` 对该句的间隔为 31 字符，直接漏判，降级重试形同虚设；同时排除 `number of image tokens … maximum … 8192` 这类视觉 token 上限，避免误判后丢掉用户图片再重试同一个注定失败的请求。
+- 测试 88 项（新增 4 项：Responses 形态被拦截并裁到 `keepRecent`、省略标记写成 `input_text`、Responses 措辞解析、视觉 token 上限不误判为张数上限）。
+
 ## 0.8.17 — 2026-09-14
 
 **设置页 UI/UE 改版**（信息层级与视觉节奏重排，功能与配置契约不变）

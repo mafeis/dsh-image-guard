@@ -67,7 +67,9 @@ GUI（设置 → 插件）只识别上述两处——`dependencies` 与 `dsh.pro
 
 ```
 DSH agent
-   │  POST /v1/chat/completions          image_url: data:image/png;base64,…
+   │  POST /v1/chat/completions          messages[].content[].image_url
+   │  POST /v1/messages                  messages[].content[].source
+   │  POST /v1/responses                 input[].content[].input_image
    ▼
 ┌─────────────── fetch 链 ──────────────────┐
 │  image-guard       ← 裁剪、解析上限、重试  │  必须位于此层
@@ -78,7 +80,7 @@ DSH agent
 上游推理服务
 ```
 
-仅处理「`POST` + 匹配聊天补全路径 + 请求体含图片」的请求，其余请求原样透传。保留最新 `keepRecent` 张图片，其余替换为标记，并以 `structuredClone` 后的请求体发送。收到 `At most N image(s)` 时解析上限 N，按 N−1 张重试，最多 `maxRetries` 次。
+仅处理「`POST` + 匹配路径 + 请求体含图片」的请求，其余请求原样透传。请求体形态支持两种：`{messages:[…]}`（OpenAI Chat Completions / Anthropic Messages）与 `{input:[…]}`（OpenAI Responses API，图片片段为 `input_image`，替换时写回 `input_text`——该路由不认 `type:"text"`）。保留最新 `keepRecent` 张图片，其余替换为标记，并以 `structuredClone` 后的请求体发送。收到 `At most N image(s)` 时解析上限 N，按 N−1 张重试，最多 `maxRetries` 次。
 
 为何需要按张数控制：`--limit-mm-per-prompt.image` 按**整个 prompt** 计数，而 DSH 客户端的预算按字节 / 像素计算、不限制张数——因此字节预算无法阻止该失败，compact 压缩也不起作用（它重发同一份历史）。为何需要接管链首：走代理时 `dsh-net-proxy` 使用自带 socket 发包，会绕过其下层的一切 fetch 包装器，且其「跟随系统代理」模式会在系统代理每次变更时把自身重新安装到链首——此时它既不会调用下层，也就无法靠事后抢回消除窗口。因此本插件拦下 `globalThis.fetch` 的赋值：新来的包装器被收作下层（它照旧生效），本插件始终位于最上层；被整个替换掉属性时由 200ms 看门狗与链上探针兜底抢回。
 
@@ -110,7 +112,7 @@ DSH agent
 | `maxRetries` | `3` | 400 后的降级重试次数 |
 | `learnLimit` | `true` | 是否从 400 响应中解析上游上限 |
 | `dryRun` | `false` | 仅观察，不修改任何请求 |
-| `matchPath` | `/chat/completions\|/messages` | 处理的路径（正则） |
+| `matchPath` | `/chat/completions\|/messages\|/responses` | 处理的路径（正则）；`/responses` 覆盖 OpenAI Responses API |
 | `markerLang` | 空（跟随界面语言） | 标记语言：留空跟随宿主界面语言，`zh` / `en` 为固定值；决定**默认模板**与标记正文（身份、取回提示）的语言 |
 | `placeholder` | 空 | 标记模板；留空或等于某语言默认模板 = 用生效语言的默认模板（`zh` → `[图片已省略 #{index}{identity}{hint}]`，`en` → `[image omitted #{index}{identity}{hint}]`） |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |

@@ -47,6 +47,15 @@ t("parseImageLimit 解析 vLLM 英文措辞", () => {
   assert.equal(parseImageLimit("At most 16 images may be provided"), 16);
 });
 t("parseImageLimit 解析中文措辞", () => assert.equal(parseImageLimit("最多 4 张图片"), 4));
+t("parseImageLimit 解析 OpenAI Responses 措辞", () => {
+  assert.equal(parseImageLimit('{"message":"Total number of images exceeds the maximum allowed of 20.","type":"invalid_request_error"}'), 20);
+  assert.equal(parseImageLimit("This model supports a maximum of 8 images per request"), 8);
+  assert.equal(parseImageLimit("max 20 images"), 20);
+});
+t("parseImageLimit 不把视觉 token 上限当成图片张数上限", () => {
+  assert.equal(parseImageLimit("number of image tokens exceeds the maximum of 8192"), null);
+  assert.equal(parseImageLimit("Your input has too many image tokens; the limit is 4096"), null);
+});
 t("parseImageLimit 对无关报文返回 null（不能乱重试）", () => {
   assert.equal(parseImageLimit("maximum context length is 8192 tokens"), null);
   assert.equal(parseImageLimit(""), null);

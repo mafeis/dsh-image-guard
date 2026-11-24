@@ -84,6 +84,34 @@ const stream = new ReadableStream({
 await fetch("https://gw/v1/chat/completions", { method: "POST", body: stream, duplex: "half" });
 check("流式 body 原样放行（未改内容）", calls[0] === null || countImg(calls[0]) === 20, `fake 读到 ${countImg(calls[0])}`);
 
+// ⑤ OpenAI Responses API：请求体是 { input: [...] }（没有 messages），图片片段为 input_image
+const mkResponsesBody = (n) => ({
+  model: "m",
+  instructions: "sys",
+  input: [
+    {
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: "看图" },
+        ...Array(n).fill(0).map((_, i) => ({ type: "input_image", image_url: `data:image/png;base64,I${i}` })),
+      ],
+    },
+  ],
+});
+const countInputImg = (b) =>
+  !b ? -1 : (b.input || []).reduce((a, m) => a + (Array.isArray(m.content) ? m.content.filter((p) => p.type === "input_image").length : 0), 0);
+
+calls = [];
+await fetch("https://gw/v1/responses", { method: "POST", body: JSON.stringify(mkResponsesBody(20)) });
+check("({input}) Responses 形态被拦截并裁到 12", countInputImg(calls[0]) === 12, `实发 ${countInputImg(calls[0])} 张`);
+
+// ⑥ 替换片段必须写成 input_text：Responses API 的输入片段不认 type:"text"
+const markers = (calls[0]?.input ?? []).flatMap((m) =>
+  (Array.isArray(m.content) ? m.content : []).filter((p) => p.type === "input_text" && String(p.text).includes("图片已省略")),
+);
+check("省略标记使用 input_text 片段", markers.length === 8, `实发 ${markers.length} 条标记`);
+
 // 诊断记录（状态文件节流写盘，等一次刷新）
 await new Promise((r) => setTimeout(r, 1100));
 const j = JSON.parse(fs.readFileSync(STATUS, "utf8"));
@@ -93,6 +121,6 @@ for (const d of diag) console.log(`        ${JSON.stringify(d)}`);
 check("诊断里出现了 foreign-Request", diag.some((d) => String(d.input).startsWith("foreign-Request")));
 check("诊断里记录了流式体", diag.some((d) => d.read === false));
 
-console.log(`\n通过 ${pass}/7`);
+console.log(`\n通过 ${pass}/9`);
 dispose();
 globalThis.fetch = real;

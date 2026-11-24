@@ -67,7 +67,9 @@ Remaining steps (once done, the GUI market offers one-click install):
 
 ```
 DSH agent
-   │  POST /v1/chat/completions          image_url: data:image/png;base64,…
+   │  POST /v1/chat/completions          messages[].content[].image_url
+   │  POST /v1/messages                  messages[].content[].source
+   │  POST /v1/responses                 input[].content[].input_image
    ▼
 ┌─────────────── fetch chain ───────────────┐
 │  image-guard       ← trim, learn, retry   │  must sit at this layer
@@ -79,7 +81,7 @@ DSH agent
 upstream inference service
 ```
 
-Only `POST` requests that match the chat path and contain images are handled — everything else passes through untouched. The newest `keepRecent` images are kept, the rest become markers, and the request is sent with a `structuredClone`d body. On `At most N image(s)` the cap is parsed, the request is retried with N−1 images, up to `maxRetries` times.
+Only `POST` requests that match a handled path and contain images are handled — everything else passes through untouched. Two body shapes are supported: `{messages:[…]}` (OpenAI Chat Completions / Anthropic Messages) and `{input:[…]}` (OpenAI Responses API, whose image parts are `input_image` and whose placeholders must be written back as `input_text`, since that route rejects `type:"text"`). The newest `keepRecent` images are kept, the rest become markers, and the request is sent with a `structuredClone`d body. On `At most N image(s)` / `exceeds the maximum allowed of N` the cap is parsed, the request is retried with N−1 images, up to `maxRetries` times.
 
 Why the chain head must be taken over: while proxying, `dsh-net-proxy` sends through its own socket and bypasses every wrapper below it, and its follow-the-system-proxy mode reinstalls it at the head on every proxy change — at that point it never calls its inner layer, so no after-the-fact reclaim can close the window. This plugin therefore intercepts assignments to `globalThis.fetch`: a newly installed wrapper is tucked in underneath (and still runs) while this plugin stays on top; if the property is replaced outright, the 200 ms watchdog and in-chain probes reclaim it.
 
@@ -111,7 +113,7 @@ Markers are sent to the provider, so the default `pathMode: "basename"` writes o
 | `maxRetries` | `3` | Downgrade retries after a 400 |
 | `learnLimit` | `true` | Parse the provider cap from the 400 response |
 | `dryRun` | `false` | Observe only, modify nothing |
-| `matchPath` | `/chat/completions\|/messages` | Which paths are handled (regex) |
+| `matchPath` | `/chat/completions\|/messages\|/responses` | Which paths are handled (regex); `/responses` covers the OpenAI Responses API |
 | `markerLang` | empty (follows the UI) | Marker language: empty follows the host interface language, `zh` / `en` pin it; sets both the default template and the language of the marker body (identity, retrieval hint) |
 | `placeholder` | empty | Marker template; empty or equal to a language default = the default for the effective language (`zh` → `[图片已省略 #{index}{identity}{hint}]`, `en` → `[image omitted #{index}{identity}{hint}]`) |
 | `pathMode` | `basename` | `full` / `relative` / `basename` / `none` |
